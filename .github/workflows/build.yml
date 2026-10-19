@@ -26,8 +26,16 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
-      - name: Fix Configs and Clean Duplicate Resources
+      - name: Fix Configs and Set Correct SDK Location
         run: |
+          # Перезаписываем local.properties верным путем к Android SDK на GitHub Actions
+          find . -type f -name "local.properties" -exec rm -f {} +
+          find . -type d -name "gradle" -o -name "app" | while read dir; do
+            parent=$(dirname "$dir")
+            echo "sdk.dir=/usr/local/lib/android/sdk" > "$parent/local.properties"
+          done
+          echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
+
           # Удаляем устаревшие опции памяти
           find . -type f -name "gradle.properties" | while read file; do
             sed -i '/MaxPermSize/d' "$file" || true
@@ -108,4 +116,3 @@ jobs:
           path: |
             **/build/outputs/apk/debug/*.apk
             *.apk
-            
