@@ -29,7 +29,7 @@ jobs:
             unzip -o java.zip
           fi
 
-      - name: Prepare Project, Fix JVM Options and Clean Duplicate Stubs
+      - name: Prepare Project, JVM, and Auto-Generate Missing Resource Stubs
         run: |
           # 1. Настраиваем local.properties
           echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
@@ -66,16 +66,29 @@ jobs:
             echo "$JSON_CONTENT" > "$src_dir/main/google-services.json"
           done
 
-          # 5. УДАЛЯЕМ ВСЕ КОНФЛИКТУЮЩИЕ XML-ЗАГЛУШКИ, ЕСЛИ ЕСТЬ РЕАЛЬНЫЕ КАРТИНКИ
-          find . -type d -name "drawable" | while read drw_dir; do
-            for xml_file in "$drw_dir"/*.xml; do
-              if [ -f "$xml_file" ]; then
-                base_name=$(basename "$xml_file" .xml)
-                if [ -f "$drw_dir/$base_name.png" ] || [ -f "$drw_dir/$base_name.webp" ] || [ -f "$drw_dir/$base_name.jpg" ]; then
-                  rm -f "$xml_file"
+          # 5. АВТОМАТИЧЕСКИ СОЗДАЕМ ЗАГЛУШКИ ВСЕХ ОТСУТСТВУЮЩИХ DRAWABLE И ANIMATOR ИЗ LAYOUT
+          find . -type d -name "res" | while read res_dir; do
+            mkdir -p "$res_dir/drawable" "$res_dir/animator"
+            
+            if [ -d "$res_dir/layout" ]; then
+              # Сканируем drawable ссылки в layout файлах и создаем xml-заглушки, если нет реальных файлов
+              grep -roh '@drawable/[a-zA-Z0-9_]*' "$res_dir/layout" 2>/dev/null | sed 's/@drawable\//\./g' | while read drw; do
+                drw_name=$(echo "$drw" | tr -d '.')
+                if [ -n "$drw_name" ]; then
+                  if [ ! -f "$res_dir/drawable/$drw_name.xml" ] && [ ! -f "$res_dir/drawable/$drw_name.png" ] && [ ! -f "$res_dir/drawable/$drw_name.webp" ] && [ ! -f "$res_dir/drawable/$drw_name.jpg" ]; then
+                    echo '<?xml version="1.0" encoding="utf-8"?><shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#00000000"/></shape>' > "$res_dir/drawable/$drw_name.xml"
+                  fi
                 fi
-              fi
-            done
+              done
+
+              # Сканируем animator ссылки в layout файлах и создаем xml-заглушки
+              grep -roh '@animator/[a-zA-Z0-9_]*' "$res_dir/layout" 2>/dev/null | sed 's/@animator\//\./g' | while read anim; do
+                anim_name=$(echo "$anim" | tr -d '.')
+                if [ -n "$anim_name" ] && [ ! -f "$res_dir/animator/$anim_name.xml" ]; then
+                  echo '<?xml version="1.0" encoding="utf-8"?><set xmlns:android="http://schemas.android.com/apk/res/android"></set>' > "$res_dir/animator/$anim_name.xml"
+                fi
+              done
+            fi
           done
 
       - name: Build Android APK with Gradle
