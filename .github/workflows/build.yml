@@ -26,6 +26,12 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
+      - name: Fix Incompatible JVM Flags
+        run: |
+          # Удаляем устаревшую опцию MaxPermSize, которая не поддерживается в Java 17
+          find . -name "gradle.properties" -exec sed -i '/MaxPermSize/d' {} +
+          find . -name "*.gradle" -exec sed -i '/MaxPermSize/d' {} +
+
       - name: Find and Build Project
         run: |
           GRADLE_PATH=$(find . -name "gradlew" -maxdepth 4 | head -n 1)
