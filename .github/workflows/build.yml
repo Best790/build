@@ -26,23 +26,25 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
-      - name: Fix Configs and Remove Hardcoded Windows Keystore
+      - name: Fix Configs Safely
         run: |
           # Удаляем устаревшие опции памяти
           find . -type f -name "gradle.properties" | while read file; do
             sed -i '/MaxPermSize/d' "$file" || true
           done
 
-          # Добавляем compileSdkVersion
+          # Безопасно правим build.gradle без повреждения скобок
           find . -type f -name "build.gradle" | while read file; do
-            if grep -q "android {" "$file"; then
+            if ! grep -q "compileSdkVersion" "$file" && ! grep -q "compileSdk" "$file"; then
               sed -i '/android {/a \    compileSdkVersion 34\n    buildToolsVersion "34.0.0"' "$file" || true
             fi
             
-            # Удаляем жесткие пути Windows к keystore и настройки signingConfig
-            sed -i '/storeFile file/d' "$file" || true
-            sed -i '/signingConfig signingConfigs/d' "$file" || true
-            sed -i '/signingConfigs {/,/}/d' "$file" || true
+            # Удаляем только строки с путями к keystore, оставляя скобки целыми
+            sed -i '/storeFile/d' "$file" || true
+            sed -i '/storePassword/d' "$file" || true
+            sed -i '/keyAlias/d' "$file" || true
+            sed -i '/keyPassword/d' "$file" || true
+            sed -i '/signingConfig /d' "$file" || true
           done
 
       - name: Find and Build Project
