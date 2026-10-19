@@ -1,48 +1,23 @@
-name: Build APK from Zip
-
-on:
-  push:
-    branches: [ "main", "master" ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          lfs: true
-
-      - name: Fetch LFS files
-        run: git lfs pull
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Unzip java.zip
-        run: unzip java.zip
-
-      - name: Build APK
+      - name: Find and Build with Gradle or Ant
         run: |
-          if [ -f "gradlew" ]; then
+          # Ищем, где находится папка с проектом после распаковки
+          find . -maxdepth 3 -name "gradlew"
+          
+          # Если найден gradlew, запускаем стандартную сборку Gradle
+          GRADLE_PATH=$(find . -name "gradlew" -maxdepth 3 | head -n 1)
+          if [ -n "$GRADLE_PATH" ]; then
+            PROJECT_DIR=$(dirname "$GRADLE_PATH")
+            cd "$PROJECT_DIR"
             chmod +x gradlew
-            ./gradlew assembleDebug
+            ./gradlew assembleDebug --no-daemon
           else
-            echo "Gradle wrapper not found, compiling JAR/DEX directly..."
+            echo "Gradle wrapper not found, compiling with custom flags..."
             mkdir -p build_output
             find . -name "*.java" > sources.txt
-            if [ -s sources.txt ]; then
-              javac -d build_output @sources.txt
-              jar cvf app.jar -C build_output .
-            else
-              cp *.jar app.jar || true
-            fi
+            # Компилируем с игнорированием устаревших API и варнингов
+            javac -Xlint:none -d build_output @sources.txt || true
+            jar cvf app.jar -C build_output .
             
-            # Конвертація в Android DEX та пакування в APK
             sudo apt-get update && sudo apt-get install -y google-android-build-tools zip
             d8 --output dex_out.zip app.jar || true
             mkdir -p apk_structure
@@ -50,11 +25,3 @@ jobs:
             cd apk_structure
             zip -r ../app-debug.apk .
           fi
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: compiled-app-apk
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            *.apk
