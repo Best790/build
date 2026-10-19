@@ -26,7 +26,7 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
-      - name: Fix Configs, SDK Location and Disable Firebase/Crashlytics
+      - name: Fix Configs, SDK Location and Clean Services
         run: |
           # Перезаписываем local.properties верным путем к Android SDK
           find . -type f -name "local.properties" -exec rm -f {} +
@@ -54,7 +54,7 @@ jobs:
             sed -i '/signingConfig /d' "$file" || true
           done
 
-          # Отключаем Google Services и Crashlytics
+          # Полностью убираем упоминания сервисов и аналитики
           find . -type f -name "build.gradle" -exec sed -i '/google-services/d' {} +
           find . -type f -name "build.gradle" -exec sed -i '/com.google.gms.google-services/d' {} +
           find . -type f -name "build.gradle" -exec sed -i '/crashlytics/d' {} +
@@ -73,7 +73,7 @@ jobs:
             done
           done
 
-          # Создаем заглушки ТОЛЬКО для тех ресурсов, которых действительно нет вообще
+          # Создаем заглушки только для тех ресурсов, которых действительно нет вообще
           find . -type d -name "res" | while read res_dir; do
             mkdir -p "$res_dir/drawable"
             if [ -d "$res_dir/layout" ]; then
@@ -95,8 +95,8 @@ jobs:
             PROJECT_DIR=$(dirname "$GRADLE_PATH")
             cd "$PROJECT_DIR"
             chmod +x gradlew
-            # Запускаем сборку, пропускаем проблемные таски Crashlytics/Google Services через -x
-            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 -x processBoostDebugGoogleServices -x injectCrashlyticsMappingFileIdBoostDebug --no-daemon
+            # Чистый запуск сборки без ошибочных пропусков задач
+            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 --no-daemon
           else
             echo "Gradle wrapper not found, compiling with fallback..."
             mkdir -p build_output
