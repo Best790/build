@@ -26,7 +26,7 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
-      - name: Fix Configs, SDK Location and Clean Services
+      - name: Fix Configs, SDK Location and Create All Missing Resources
         run: |
           # Перезаписываем local.properties верным путем к Android SDK
           find . -type f -name "local.properties" -exec rm -f {} +
@@ -61,7 +61,7 @@ jobs:
           find . -type f -name "build.gradle" -exec sed -i '/firebase/d' {} +
           find . -type f -name "*.gs" -delete || true
 
-          # Очищаем сгенерированные xml-заглушки, если рядом уже есть png, jpg или webp файлы
+          # Очищаем сгенерированные xml-заглушки графики, если рядом уже есть реальные файлы
           find . -type d -name "drawable" | while read drw_dir; do
             for xml_file in "$drw_dir"/*.xml; do
               if [ -f "$xml_file" ]; then
@@ -73,7 +73,7 @@ jobs:
             done
           done
 
-          # Создаем заглушки только для тех ресурсов, которых действительно нет вообще
+          # Создаем заглушки для графики (drawable)
           find . -type d -name "res" | while read res_dir; do
             mkdir -p "$res_dir/drawable"
             if [ -d "$res_dir/layout" ]; then
@@ -88,6 +88,19 @@ jobs:
             fi
           done
 
+          # Создаем универсальные заглушки для аниматоров (animator)
+          find . -type d -name "res" | while read res_dir; do
+            mkdir -p "$res_dir/animator"
+            if [ -d "$res_dir/layout" ]; then
+              grep -roh '@animator/[a-zA-Z0-9_]*' "$res_dir/layout" 2>/dev/null | sed 's/@animator\//\./g' | while read anim; do
+                anim_name=$(echo "$anim" | tr -d '.')
+                if [ -n "$anim_name" ] && [ ! -f "$res_dir/animator/$anim_name.xml" ]; then
+                  echo '<?xml version="1.0" encoding="utf-8"?><set xmlns:android="http://schemas.android.com/apk/res/android"></set>' > "$res_dir/animator/$anim_name.xml"
+                fi
+              done
+            fi
+          done
+
       - name: Find and Build Project
         run: |
           GRADLE_PATH=$(find . -name "gradlew" -maxdepth 4 | head -n 1)
@@ -95,7 +108,6 @@ jobs:
             PROJECT_DIR=$(dirname "$GRADLE_PATH")
             cd "$PROJECT_DIR"
             chmod +x gradlew
-            # Чистый запуск сборки без ошибочных пропусков задач
             ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 --no-daemon
           else
             echo "Gradle wrapper not found, compiling with fallback..."
