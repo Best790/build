@@ -26,18 +26,23 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
-      - name: Fix Incompatible JVM Flags and Add SDK
+      - name: Fix Configs and Remove Hardcoded Windows Keystore
         run: |
           # Удаляем устаревшие опции памяти
           find . -type f -name "gradle.properties" | while read file; do
             sed -i '/MaxPermSize/d' "$file" || true
           done
 
-          # Принудительно вставляем compileSdkVersion во все файлы build.gradle
+          # Добавляем compileSdkVersion
           find . -type f -name "build.gradle" | while read file; do
             if grep -q "android {" "$file"; then
               sed -i '/android {/a \    compileSdkVersion 34\n    buildToolsVersion "34.0.0"' "$file" || true
             fi
+            
+            # Удаляем жесткие пути Windows к keystore и настройки signingConfig
+            sed -i '/storeFile file/d' "$file" || true
+            sed -i '/signingConfig signingConfigs/d' "$file" || true
+            sed -i '/signingConfigs {/,/}/d' "$file" || true
           done
 
       - name: Find and Build Project
