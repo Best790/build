@@ -26,11 +26,19 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
-      - name: Fix Incompatible JVM Flags
+      - name: Fix Incompatible JVM Flags and Missing SDK
         run: |
-          # Безопасно ищем только обычные файлы gradle.properties и правим их
+          # Удаляем устаревшие опции памяти
           find . -type f -name "gradle.properties" | while read file; do
             sed -i '/MaxPermSize/d' "$file" || true
+          done
+
+          # Автоматически добавляем compileSdkVersion, если его нет в build.gradle
+          find . -type f -name "build.gradle" | while read file; do
+            if ! grep -q "compileSdkVersion" "$file" && ! grep -q "compileSdk" "$file"; then
+              echo "Adding compileSdkVersion to $file"
+              sed -i 's/android {/android {\n    compileSdkVersion 34/g' "$file" || true
+            fi
           done
 
       - name: Find and Build Project
