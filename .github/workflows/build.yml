@@ -29,7 +29,7 @@ jobs:
             unzip -o java.zip
           fi
 
-      - name: Prepare Project and Stubs
+      - name: Prepare Project, Remove Crashlytics and Stubs
         run: |
           # 1. Настраиваем local.properties
           echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
@@ -40,8 +40,13 @@ jobs:
             sed -i '/MaxPermSize/d' "$file" || true
           done
 
-          # 3. Настраиваем build.gradle и принудительно включаем дебаг-подпись
+          # 3. Полностью вырезаем применение плагинов google-services и crashlytics из build.gradle
           find . -type f -name "build.gradle" | while read file; do
+            sed -i '/google-services/d' "$file" || true
+            sed -i '/com.google.gms/d' "$file" || true
+            sed -i '/crashlytics/d' "$file" || true
+            sed -i '/firebase/d' "$file" || true
+            
             if ! grep -q "compileSdkVersion" "$file" && ! grep -q "compileSdk" "$file"; then
               sed -i '/android {/a \    compileSdkVersion 34\n    buildToolsVersion "34.0.0"\n    lintOptions {\n        checkReleaseBuilds false\n        abortOnError false\n    }' "$file" || true
             fi
@@ -52,6 +57,9 @@ jobs:
             sed -i '/keyPassword/d' "$file" || true
             sed -i '/signingConfig /d' "$file" || true
           done
+
+          # Удаляем файлы плагинов `.gs` если они есть
+          find . -type f -name "*.gs" -delete || true
 
           # 4. Создаем заглушку google-services.json для пакета ru.parkermobile.game
           JSON_CONTENT='{
@@ -107,8 +115,8 @@ jobs:
             PROJECT_DIR=$(dirname "$GRADLE_PATH")
             cd "$PROJECT_DIR"
             chmod +x gradlew
-            # Запускаем сборку дебаг версии
-            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 --no-daemon
+            # Запускаем сборку и пропускаем задачи инъекции Crashlytics
+            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 -x injectCrashlyticsMappingFileIdBoostDebug -x injectCrashlyticsMappingFileIdRelease --no-daemon
           else
             echo "Gradlew not found!"
             exit 1
