@@ -23,9 +23,6 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK Tools
-        uses: android-actions/setup-android@v3
-
       - name: Unzip java.zip
         run: |
           if [ -f "java.zip" ]; then
@@ -34,9 +31,9 @@ jobs:
 
       - name: Prepare Project and Inject Valid Stubs
         run: |
-          # 1. Исправляем local.properties под Linux CI
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          find . -type f -name "local.properties" -exec sh -c 'echo "sdk.dir=$ANDROID_HOME" > "$1"' _ {} \;
+          # 1. Исправляем local.properties под стандартный путь Android SDK в Ubuntu
+          echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
+          find . -type f -name "local.properties" -exec sh -c 'echo "sdk.dir=/usr/local/lib/android/sdk" > "$1"' _ {} \;
 
           # 2. Очищаем устаревшие флаги JVM
           find . -type f -name "gradle.properties" | while read file; do
@@ -49,7 +46,7 @@ jobs:
               sed -i '/android {/a \    compileSdkVersion 34\n    buildToolsVersion "34.0.0"\n    lintOptions {\n        checkReleaseBuilds false\n        abortOnError false\n    }' "$file" || true
             fi
             
-            # Удаляем жестко прописанные Windows-пути ключей подписи
+            # Удаляем жестко прописанные пути ключей подписи
             sed -i '/storeFile/d' "$file" || true
             sed -i '/storePassword/d' "$file" || true
             sed -i '/keyAlias/d' "$file" || true
@@ -58,8 +55,6 @@ jobs:
           done
 
           # 4. Генерируем правильный google-services.json для пакета ru.parkermobile.game
-          # Это устранит ошибки с RemoteMessage и Firebase
-          FIND_JSON=$(find . -name "google-services.json")
           JSON_CONTENT='{
             "project_info": { "project_number": "1234567890", "project_id": "parker-mobile", "storage_bucket": "parker-mobile.appspot.com" },
             "client": [{
@@ -71,6 +66,7 @@ jobs:
             "configuration_version": "1"
           }'
 
+          FIND_JSON=$(find . -name "google-services.json")
           if [ -n "$FIND_JSON" ]; then
             echo "$FIND_JSON" | while read gjson; do
               echo "$JSON_CONTENT" > "$gjson"
@@ -82,11 +78,10 @@ jobs:
             done
           fi
 
-          # 5. Автоматически создаем недостающие ресурсы drawable, если их нет
+          # 5. Автоматически создаем недостающие ресурсы drawable и animator
           find . -type d -name "res" | while read res_dir; do
             mkdir -p "$res_dir/drawable" "$res_dir/animator"
             
-            # Удаляем дубликаты xml, если есть png/webp/jpg
             for xml_file in "$res_dir/drawable"/*.xml; do
               if [ -f "$xml_file" ]; then
                 base_name=$(basename "$xml_file" .xml)
@@ -96,7 +91,6 @@ jobs:
               fi
             done
 
-            # Создаем отсутствующие заглушки графики
             if [ -d "$res_dir/layout" ]; then
               grep -roh '@drawable/[a-zA-Z0-9_]*' "$res_dir/layout" 2>/dev/null | sed 's/@drawable\//\./g' | while read drw; do
                 drw_name=$(echo "$drw" | tr -d '.')
@@ -107,7 +101,6 @@ jobs:
                 fi
               done
 
-              # Создаем отсутствующие заглушки аниматоров
               grep -roh '@animator/[a-zA-Z0-9_]*' "$res_dir/layout" 2>/dev/null | sed 's/@animator\//\./g' | while read anim; do
                 anim_name=$(echo "$anim" | tr -d '.')
                 if [ -n "$anim_name" ] && [ ! -f "$res_dir/animator/$anim_name.xml" ]; then
