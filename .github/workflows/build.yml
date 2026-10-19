@@ -26,18 +26,17 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
-      - name: Fix Incompatible JVM Flags and Missing SDK
+      - name: Fix Incompatible JVM Flags and Add SDK
         run: |
           # Удаляем устаревшие опции памяти
           find . -type f -name "gradle.properties" | while read file; do
             sed -i '/MaxPermSize/d' "$file" || true
           done
 
-          # Автоматически добавляем compileSdkVersion, если его нет в build.gradle
+          # Принудительно вставляем compileSdkVersion во все файлы build.gradle
           find . -type f -name "build.gradle" | while read file; do
-            if ! grep -q "compileSdkVersion" "$file" && ! grep -q "compileSdk" "$file"; then
-              echo "Adding compileSdkVersion to $file"
-              sed -i 's/android {/android {\n    compileSdkVersion 34/g' "$file" || true
+            if grep -q "android {" "$file"; then
+              sed -i '/android {/a \    compileSdkVersion 34\n    buildToolsVersion "34.0.0"' "$file" || true
             fi
           done
 
@@ -48,7 +47,7 @@ jobs:
             PROJECT_DIR=$(dirname "$GRADLE_PATH")
             cd "$PROJECT_DIR"
             chmod +x gradlew
-            ./gradlew assembleDebug --no-daemon
+            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 --no-daemon
           else
             echo "Gradle wrapper not found, compiling with fallback..."
             mkdir -p build_output
