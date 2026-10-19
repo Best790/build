@@ -46,7 +46,7 @@ jobs:
             sed -i '/signingConfig /d' "$file" || true
           done
 
-          # Удаляем или отключаем плагин google-services, чтобы он не вызывал ошибку пакета
+          # Удаляем плагин google-services
           find . -type f -name "build.gradle" -exec sed -i '/google-services/d' {} +
           find . -type f -name "build.gradle" -exec sed -i '/com.google.gms.google-services/d' {} +
           find . -type f -name "*.gs" -delete || true
@@ -58,7 +58,8 @@ jobs:
             PROJECT_DIR=$(dirname "$GRADLE_PATH")
             cd "$PROJECT_DIR"
             chmod +x gradlew
-            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 --no-daemon
+            # Запускаем сборку с выводом ошибок (--stacktrace), чтобы увидеть точную причину
+            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 --no-daemon --stacktrace
           else
             echo "Gradle wrapper not found, compiling with fallback..."
             mkdir -p build_output
