@@ -29,19 +29,19 @@ jobs:
             unzip -o java.zip
           fi
 
-      - name: Prepare Project and Fix JVM Options
+      - name: Prepare Project, Fix JVM Options and Clean Duplicate Stubs
         run: |
           # 1. Настраиваем local.properties
           echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
           find . -type f -name "local.properties" -exec sh -c 'echo "sdk.dir=/usr/local/lib/android/sdk" > "$1"' _ {} \;
 
-          # 2. УДАЛЯЕМ MaxPermSize изо всех файлов gradle.properties
+          # 2. Удаляем MaxPermSize для совместимости с JDK 17
           find . -type f -name "gradle.properties" | while read file; do
             sed -i '/MaxPermSize/d' "$file" || true
             sed -i 's/-XX:MaxPermSize=[^ ]*//g' "$file" || true
           done
 
-          # 3. Добавляем compileSdkVersion 34 и отключаем линт
+          # 3. Настраиваем build.gradle
           find . -type f -name "build.gradle" | while read file; do
             sed -i '/google-services/d' "$file" || true
             sed -i '/com.google.gms/d' "$file" || true
@@ -66,17 +66,16 @@ jobs:
             echo "$JSON_CONTENT" > "$src_dir/main/google-services.json"
           done
 
-          # 5. Создаем отсутствующие заглушки ресурсов
-          find . -type d -name "res" | while read res_dir; do
-            mkdir -p "$res_dir/drawable" "$res_dir/animator"
-            if [ -d "$res_dir/layout" ]; then
-              grep -roh '@drawable/[a-zA-Z0-9_]*' "$res_dir/layout" 2>/dev/null | sed 's/@drawable\//\./g' | while read drw; do
-                drw_name=$(echo "$drw" | tr -d '.')
-                if [ -n "$drw_name" ] && [ ! -f "$res_dir/drawable/$drw_name.xml" ] && [ ! -f "$res_dir/drawable/$drw_name.png" ]; then
-                  echo '<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#00000000"/></shape>' > "$res_dir/drawable/$drw_name.xml"
+          # 5. УДАЛЯЕМ ВСЕ КОНФЛИКТУЮЩИЕ XML-ЗАГЛУШКИ, ЕСЛИ ЕСТЬ РЕАЛЬНЫЕ КАРТИНКИ
+          find . -type d -name "drawable" | while read drw_dir; do
+            for xml_file in "$drw_dir"/*.xml; do
+              if [ -f "$xml_file" ]; then
+                base_name=$(basename "$xml_file" .xml)
+                if [ -f "$drw_dir/$base_name.png" ] || [ -f "$drw_dir/$base_name.webp" ] || [ -f "$drw_dir/$base_name.jpg" ]; then
+                  rm -f "$xml_file"
                 fi
-              done
-            fi
+              fi
+            done
           done
 
       - name: Build Android APK with Gradle
