@@ -58,7 +58,6 @@ jobs:
             sed -i '/signingConfig /d' "$file" || true
           done
 
-          # Удаляем файлы плагинов `.gs` если они есть
           find . -type f -name "*.gs" -delete || true
 
           # 4. Создаем заглушку google-services.json для пакета ru.parkermobile.game
@@ -115,8 +114,8 @@ jobs:
             PROJECT_DIR=$(dirname "$GRADLE_PATH")
             cd "$PROJECT_DIR"
             chmod +x gradlew
-            # Запускаем сборку и пропускаем задачи инъекции Crashlytics
-            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 -x injectCrashlyticsMappingFileIdBoostDebug -x injectCrashlyticsMappingFileIdRelease --no-daemon
+            # Чистый запуск сборки без ошибочных пропусков удаленных задач
+            ./gradlew assembleDebug -Pandroid.compileSdkVersion=34 --no-daemon
           else
             echo "Gradlew not found!"
             exit 1
