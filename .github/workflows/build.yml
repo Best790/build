@@ -26,7 +26,7 @@ jobs:
       - name: Unzip java.zip
         run: unzip java.zip
 
-      - name: Fix Configs and Create Missing Resources
+      - name: Fix Configs and Auto-Create Missing Resources
         run: |
           # Удаляем устаревшие опции памяти
           find . -type f -name "gradle.properties" | while read file; do
@@ -51,11 +51,16 @@ jobs:
           find . -type f -name "build.gradle" -exec sed -i '/com.google.gms.google-services/d' {} +
           find . -type f -name "*.gs" -delete || true
 
-          # Автоматически создаем недостающий ресурс hud_radar_shadow, чтобы AAPT не ругался
+          # Автоматически находим все запрашиваемые в layout элементы и создаем для них заглушки
           find . -type d -name "res" | while read res_dir; do
             mkdir -p "$res_dir/drawable"
-            if [ ! -f "$res_dir/drawable/hud_radar_shadow.xml" ]; then
-              echo '<?xml version="1.0" encoding="utf-8"?><shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#00000000"/></shape>' > "$res_dir/drawable/hud_radar_shadow.xml"
+            if [ -d "$res_dir/layout" ]; then
+              grep -roh '@drawable/[a-zA-Z0-9_]*' "$res_dir/layout" 2>/dev/null | sed 's/@drawable\//\./g' | while read drw; do
+                drw_name=$(echo "$drw" | tr -d '.')
+                if [ -n "$drw_name" ] && [ ! -f "$res_dir/drawable/$drw_name.xml" ]; then
+                  echo '<?xml version="1.0" encoding="utf-8"?><shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#00000000"/></shape>' > "$res_dir/drawable/$drw_name.xml"
+                fi
+              done
             fi
           done
 
